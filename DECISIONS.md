@@ -11,7 +11,7 @@ blocks used for expanding-window walk-forward validation (train on blocks
 
 **Rejected alternative:** plain random k-fold (even stratified by TARGET).
 Rejected regardless of measured drift, because it assumes away exactly the
-risk we can't verify — that applicants who applied later differ systematically
+risk we can't verify -- that applicants who applied later differ systematically
 from earlier ones (macro conditions, underwriting policy, population mix). A
 random split would let "future-like" rows leak into training and could
 overstate offline performance relative to production, where the model only

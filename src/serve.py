@@ -115,6 +115,13 @@ def _build_application_row(application: BaseModel) -> pd.DataFrame:
     return row
 
 
+BUREAU_NUMERIC_FIELDS = [
+    "DAYS_CREDIT", "DAYS_CREDIT_UPDATE", "DAYS_CREDIT_ENDDATE", "DAYS_ENDDATE_FACT",
+    "CREDIT_DAY_OVERDUE", "CNT_CREDIT_PROLONG", "AMT_CREDIT_SUM", "AMT_CREDIT_SUM_DEBT",
+    "AMT_CREDIT_SUM_LIMIT", "AMT_CREDIT_SUM_OVERDUE", "AMT_ANNUITY",
+]
+
+
 def _build_bureau_row(bureau_records: list[BureauRecord]) -> pd.DataFrame:
     bureau_cols = MANIFEST["bureau_feature_columns"]
     if not bureau_records:
@@ -122,6 +129,13 @@ def _build_bureau_row(bureau_records: list[BureauRecord]) -> pd.DataFrame:
 
     raw = pd.DataFrame([r.model_dump() for r in bureau_records])
     raw["SK_ID_CURR"] = 0  # single applicant per request; group key is a placeholder
+    # a field the caller omits arrives as Python None; a column built entirely
+    # (or partly) from None lands as object dtype, not float NaN, and survives
+    # that way into the aggregate -- LightGBM's predict() rejects object dtype
+    # outright. pd.read_csv never has this problem (missing cells are already
+    # float NaN), so this only shows up here, at the request boundary.
+    for col in BUREAU_NUMERIC_FIELDS:
+        raw[col] = pd.to_numeric(raw[col], errors="coerce")
     filtered = filter_point_in_time(raw)
     if len(filtered) == 0:
         return pd.DataFrame([{c: np.nan for c in bureau_cols}])

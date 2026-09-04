@@ -1,0 +1,11 @@
+# Runtime deps for the Docker image only: what serve.py actually imports at
+# request time. No pytest/httpx (test-only) -- kept separate from
+# requirements.txt so the served image doesn't carry the dev/training/test
+# toolchain.
+pandas==3.0.5
+numpy==2.5.2
+scikit-learn==1.9.0
+lightgbm==4.7.0
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
