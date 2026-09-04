@@ -62,7 +62,7 @@ def sweep(scores: np.ndarray, y: np.ndarray, cost_fn: np.ndarray, cost_fp: np.nd
 
 
 def main() -> None:
-    X_calib, y_calib, _, calibrated_scores = fit_calibration(verbose=False)
+    _, _, X_calib, y_calib, _, calibrated_scores = fit_calibration(verbose=False)
     y = y_calib.values
     amt_credit = X_calib["AMT_CREDIT"].values
 

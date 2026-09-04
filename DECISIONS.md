@@ -222,3 +222,50 @@ comparable to each other (the LGD assumption itself rescales the dollar unit,
 not just the policy), only threshold movement should be read as the
 sensitivity signal: higher assumed LGD pushes the threshold down (decline
 more readily), as expected.
+
+## FastAPI serving layer (component 7)
+
+**Decision:** /predict accepts raw bureau tradelines (bureau_records, matching
+bureau.csv's schema), not pre-computed BUREAU_* aggregates. It calls
+bureau_features.filter_point_in_time() and aggregate_bureau() directly --
+the same functions components 4-6 were trained and leakage-tested against.
+
+**Rejected alternative:** accepting pre-computed aggregates. Would require
+whoever computes them upstream to independently reproduce all 28 aggregation
+formulas, the point-in-time cutoff, and the missing-not-zero/min_count=1
+semantics, in a second implementation the leakage tests don't cover. One
+implementation, reused, eliminates that class of train/serve skew by
+construction. Real production alternative to this shortcut: a feature store
+(Feast/Tecton-style) computing features once for both training and serving --
+same "single implementation" principle, just with the computation moved to a
+scheduled job. Not warranted at this scale; reusing the module directly gets
+the same benefit for free.
+
+**Artifacts:** model.pkl, calibrator.pkl, manifest.pkl (feature order,
+categorical columns' exact fitted category levels, bureau vs application
+column split, threshold, cost assumptions), written by train_final_model.py,
+loaded once at import time in serve.py. No retraining at request or startup
+time. Categorical columns are reconstructed at serve time with
+pd.Categorical(value, categories=<persisted levels>), not inferred fresh --
+a fresh inference would assign different integer codes than training did,
+silently corrupting every split using that column. An unseen category value
+becomes NaN via the same construction (correct: LightGBM already routes
+missing values; inventing a new code for something never seen in training
+would not be).
+
+**Missing features:** every application field defaults to None (Optional,
+via a Pydantic model generated from the manifest with pydantic.create_model
+rather than ~120 hand-typed fields, to avoid the request schema silently
+drifting from what the model actually expects) -> NaN through pandas. No
+applicant with no bureau_records -> all 28 BUREAU_* columns NaN, same as the
+~14% no-history population at training time. No zero-filling anywhere.
+
+**Verified end to end**, live process (uvicorn, not just in-process
+TestClient): /health returns {"status":"ok","n_features":148,"threshold":0.1225}.
+/predict on a real applicant (SK_ID_CURR 120860, 116 real bureau tradelines,
+actual TARGET=0) returns probability=0.0706, decision="approve" -- correctly
+below the 0.1225 threshold, consistent with the true label. Same applicant
+with bureau_records=[] (no-history path) returns probability=0.0630,
+decision="approve" -- confirms the NaN-fallback path runs the same model
+without erroring and produces a different, reasonable score in the absence
+of bureau history.

@@ -6,4 +6,5 @@ venv/
 mlruns/
 *.parquet
 .ipynb_checkpoints/
+artifacts/
 CLAUDE.md

@@ -42,13 +42,13 @@ from with_bureau import build_dataset
 ISOTONIC_MIN_EXAMPLES = 1000
 
 
-def fit_calibration(verbose: bool = True) -> tuple[pd.DataFrame, pd.Series, np.ndarray, np.ndarray]:
+def fit_calibration(verbose: bool = True):
     """
     Trains the fold-3 model (blocks 0-3) and calibrates it on block_4.
-    Returns (X_calib, y_calib, raw_scores, calibrated_scores) so downstream
-    components (e.g. threshold selection) reuse the exact same fit rather
-    than retraining and possibly drifting from the calibration numbers
-    reported here.
+    Returns (model, calibrator, X_calib, y_calib, raw_scores, calibrated_scores)
+    so downstream components (threshold selection, artifact persistence for
+    serving) reuse the exact same fit rather than retraining and possibly
+    drifting from the calibration numbers reported here.
     """
     features, target, split, cat_cols = build_dataset()
 
@@ -98,11 +98,11 @@ def fit_calibration(verbose: bool = True) -> tuple[pd.DataFrame, pd.Series, np.n
         calibrator.fit(raw_scores.reshape(-1, 1), y_calib)
         calibrated_scores = calibrator.predict_proba(raw_scores.reshape(-1, 1))[:, 1]
 
-    return X_calib, y_calib, raw_scores, calibrated_scores
+    return model, calibrator, X_calib, y_calib, raw_scores, calibrated_scores
 
 
 def main() -> None:
-    X_calib, y_calib, raw_scores, calibrated_scores = fit_calibration()
+    _, _, X_calib, y_calib, raw_scores, calibrated_scores = fit_calibration()
 
     print()
     print("=" * 80)
