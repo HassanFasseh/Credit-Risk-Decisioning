@@ -166,3 +166,59 @@ level are not, which is why it moved and the others didn't. 1,869 calibration-
 slice rows are tied at the exact score value straddling the top-10% cutoff --
 their relative order within that tie is arbitrary post-calibration, which
 matters for lift-based portfolio cuts and should stay visible, not buried.
+
+## Cost matrix and decision threshold (component 6)
+
+**Decision, made with the user, not unilaterally:** cost scales linearly with
+AMT_CREDIT for both error types --
+    C_FN(i) = 0.75 * AMT_CREDIT_i   (approve a defaulter: lose 75% of principal, LGD)
+    C_FP(i) = 0.10 * AMT_CREDIT_i   (reject a good applicant: lose 10% margin)
+giving a 7.5:1 cost ratio. LGD 0.75 sits at the high end of the commonly cited
+40-70% LGD range for unsecured consumer credit, and margin 0.10 reflects
+Home Credit's near-prime consumer-finance segment; neither is derivable from
+this dataset (no recovery or rate data), both are named assumptions.
+
+**Flat ratio drives the threshold; AMT_CREDIT-scaling is for reporting only.**
+Both costs scale linearly in AMT_CREDIT, so the theoretical cost-minimizing
+threshold p* = C_FP/(C_FN+C_FP) is independent of loan size -- the amount
+cancels out of the ratio. Verified this empirically rather than trusting the
+algebra alone: swept both a flat (count-weighted) and a dollar (AMT_CREDIT-
+weighted) objective over the 56 calibrated-score plateaus. They picked
+DIFFERENT thresholds (flat: 0.1225, dollar: 0.1388) -- the cancellation is
+exact only for a continuously adjustable threshold; on a finite discrete grid,
+large and small loans aren't evenly spread across plateaus, so which plateau
+minimizes dollar cost vs. count cost can differ. Per the agreed design, the
+flat optimum (0.1225) is what drives the actual decision; dollar figures are
+reported at that same threshold, not re-optimized in dollar terms.
+
+**Closed-form cross-check:** p* = 0.10/0.85 = 0.1176. Empirical flat optimum
+(0.1225) sits close to this but not exactly on it -- expected, since the
+closed form assumes perfectly calibrated probabilities and the calibration
+component already showed the reliability curve is good but not perfect
+out-of-sample. This gap is a legitimate empirical validation, not noise to
+explain away.
+
+**Tie-break rule:** decline if calibrated_score >= threshold (not strictly
+>). Isotonic pooled thousands of applicants onto the same 56 plateau values,
+so >= vs > is a real, visible policy choice, not a rounding detail. Ties go
+to decline -- the cheaper error to make wrongly, given FN costs 7.5x more.
+
+**Result at threshold 0.1225** (block_4, n=52,276): decline rate 22.49%
+(11,759 declined). Confusion matrix (positive = actual default): TP=2,429,
+FN=1,749, FP=9,330, TN=38,768.
+
+**Result vs baselines** (dollar terms): chosen policy total cost $1.308B vs
+0.5-threshold $1.673B (21.8% reduction, $365M) vs approve-all $1.749B (25.2%
+reduction, $441M) vs reject-all $2.888B -- reject-all is the worst policy by
+a wide margin despite FN costing 7.5x more per unit, because ~92% of
+applicants are good: 0.10 x (~48k good applicants) outweighs 0.75 x (~4.2k
+defaulters) in aggregate. 0.5 threshold declines almost nobody (0.77%) given
+how low these calibrated probabilities run, which is exactly why 0.5 is the
+wrong default for an ~8%-base-rate problem.
+
+**Sensitivity (LGD varied, margin fixed at 0.10):** 5:1 -> threshold 0.1667,
+7.5:1 -> 0.1225, 10:1 -> 0.0966. Total costs across scenarios aren't directly
+comparable to each other (the LGD assumption itself rescales the dollar unit,
+not just the policy), only threshold movement should be read as the
+sensitivity signal: higher assumed LGD pushes the threshold down (decline
+more readily), as expected.

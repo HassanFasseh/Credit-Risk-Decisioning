@@ -42,7 +42,14 @@ from with_bureau import build_dataset
 ISOTONIC_MIN_EXAMPLES = 1000
 
 
-def main() -> None:
+def fit_calibration(verbose: bool = True) -> tuple[pd.DataFrame, pd.Series, np.ndarray, np.ndarray]:
+    """
+    Trains the fold-3 model (blocks 0-3) and calibrates it on block_4.
+    Returns (X_calib, y_calib, raw_scores, calibrated_scores) so downstream
+    components (e.g. threshold selection) reuse the exact same fit rather
+    than retraining and possibly drifting from the calibration numbers
+    reported here.
+    """
     features, target, split, cat_cols = build_dataset()
 
     train_mask = split.isin(["block_0", "block_1", "block_2", "block_3"])
@@ -51,13 +58,14 @@ def main() -> None:
     X_train, y_train = features[train_mask], target[train_mask]
     X_calib, y_calib = features[calib_mask], target[calib_mask]
 
-    print()
-    print("=" * 80)
-    print("CALIBRATION SLICE")
-    print("=" * 80)
-    print(f"  train: blocks 0-3, {len(X_train):,} rows, {int(y_train.sum()):,} positive")
-    print(f"  calibration slice: block_4, {len(X_calib):,} rows, {int(y_calib.sum()):,} positive")
-    print("  holdout: untouched")
+    if verbose:
+        print()
+        print("=" * 80)
+        print("CALIBRATION SLICE")
+        print("=" * 80)
+        print(f"  train: blocks 0-3, {len(X_train):,} rows, {int(y_train.sum()):,} positive")
+        print(f"  calibration slice: block_4, {len(X_calib):,} rows, {int(y_calib.sum()):,} positive")
+        print("  holdout: untouched")
 
     model = lgb.LGBMClassifier(**LGBM_PARAMS)
     model.fit(
@@ -69,15 +77,16 @@ def main() -> None:
     )
     raw_scores = model.predict_proba(X_calib)[:, 1]
 
-    print()
-    print("=" * 80)
-    print("CALIBRATOR CHOICE")
-    print("=" * 80)
     n_calib, n_pos = len(X_calib), int(y_calib.sum())
     use_isotonic = n_calib >= ISOTONIC_MIN_EXAMPLES and n_pos >= ISOTONIC_MIN_EXAMPLES
-    print(f"  calibration slice: {n_calib:,} rows, {n_pos:,} positive "
-          f"(rule of thumb: need >= {ISOTONIC_MIN_EXAMPLES:,} of each to trust isotonic)")
-    print(f"  -> using {'isotonic' if use_isotonic else 'Platt/sigmoid'} regression")
+    if verbose:
+        print()
+        print("=" * 80)
+        print("CALIBRATOR CHOICE")
+        print("=" * 80)
+        print(f"  calibration slice: {n_calib:,} rows, {n_pos:,} positive "
+              f"(rule of thumb: need >= {ISOTONIC_MIN_EXAMPLES:,} of each to trust isotonic)")
+        print(f"  -> using {'isotonic' if use_isotonic else 'Platt/sigmoid'} regression")
 
     if use_isotonic:
         calibrator = IsotonicRegression(out_of_bounds="clip")
@@ -88,6 +97,12 @@ def main() -> None:
         calibrator = LogisticRegression()
         calibrator.fit(raw_scores.reshape(-1, 1), y_calib)
         calibrated_scores = calibrator.predict_proba(raw_scores.reshape(-1, 1))[:, 1]
+
+    return X_calib, y_calib, raw_scores, calibrated_scores
+
+
+def main() -> None:
+    X_calib, y_calib, raw_scores, calibrated_scores = fit_calibration()
 
     print()
     print("=" * 80)
