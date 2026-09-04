@@ -1,13 +1,5 @@
 # Credit Risk Decisioning
 
-![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
-![LightGBM](https://img.shields.io/badge/LightGBM-2E8B57?logo=lightgbm&logoColor=white)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn&logoColor=white)
-![pandas](https://img.shields.io/badge/pandas-150458?logo=pandas&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white)
-
 A credit-default risk system on the Home Credit dataset that turns an applicant's
 data into an approve or decline decision. It goes past the usual notebook:
 leakage-safe features built with point-in-time correctness, walk-forward validation,
@@ -119,4 +111,3 @@ malformed-input rejection).
 - The behavioral panel tables (monthly balances, installments) are deferred; the
   current model uses the application and bureau tables.
 - Single LightGBM model, no ensemble.
-
