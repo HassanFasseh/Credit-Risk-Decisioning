@@ -78,3 +78,46 @@ conflate two changes at once. Deferred to a tuning-focused component.
 **Result (mean over 4 walk-forward folds, holdout untouched):**
 PR-AUC = 0.2372 (std 0.0092), ROC-AUC = 0.7515 (reference only, std 0.0075),
 lift@10 = 3.24 (std 0.14), lift@20 = 2.56 (std 0.07).
+
+## Bureau features, point-in-time cutoff (component 4)
+
+**Decision:** aggregate bureau.csv per SK_ID_CURR using only rows where
+`DAYS_CREDIT < 0 AND DAYS_CREDIT_UPDATE < 0`, both strict. Computed the actual
+distributions before choosing this rather than assuming: DAYS_CREDIT ranges
+[-2922, 0] with only 25 rows at exactly 0 and none positive; DAYS_CREDIT_UPDATE
+ranges [-41947, 372] with 605 rows at exactly 0 and 17 positive. Combined
+filter drops 646 of 1,716,428 rows (0.038%) and costs 19 applicants their
+entire bureau history (they correctly fall back to all-NaN, not zero).
+
+**Why both fields, not just DAYS_CREDIT:** DAYS_CREDIT is the credit's fixed
+origination date; DAYS_CREDIT_UPDATE is the "as-of" timestamp for every
+mutable status field on that row (CREDIT_ACTIVE, AMT_CREDIT_SUM_DEBT,
+CREDIT_DAY_OVERDUE, ...). A credit that predates the application can still
+have its bureau-reported status refreshed on or after the application,
+which would leak post-decision information through those status fields even
+though DAYS_CREDIT itself looks safe. Verified empirically rather than
+assumed: among rows passing both cutoffs, DAYS_ENDDATE_FACT (actual closure
+date) never occurs on/after the application (max -1 day) -- confirming
+DAYS_CREDIT_UPDATE really does bound every status field on the row, not just
+the ones directly aggregated.
+
+**Not leakage, left untouched:** DAYS_CREDIT_ENDDATE (planned/contractual
+maturity date) is positive for ~37% of kept rows. That's a future date known
+at origination (e.g. "this loan matures in 3 years"), not information that
+arrived after the application decision.
+
+**Missing-not-zero:** applicants with no bureau history, or whose entire
+history fails the point-in-time filter, get NaN across every BUREAU_* column
+via a left join, never 0 -- absence of a group in the post-filter groupby
+naturally produces this. Separately, every `.sum()` aggregation uses
+`min_count=1`: pandas' default `sum()` over an all-NaN group returns 0, which
+would silently manufacture a fake zero for an applicant who has bureau rows
+but happens to be null on that specific field (e.g. AMT_ANNUITY is often
+missing). Both failure modes are covered by tests/test_bureau_leakage.py.
+
+**Result (mean over 4 walk-forward folds, holdout untouched):**
+PR-AUC = 0.2457 (std 0.0108) vs baseline 0.2372, +0.0085 (+3.6% relative).
+ROC-AUC = 0.7575 (reference only) vs 0.7515.
+lift@10 = 3.33 vs 3.24, lift@20 = 2.61 vs 2.56.
+Improvement holds in all 4 folds individually, not just on average -- bureau
+history earns its place in v1.1.
