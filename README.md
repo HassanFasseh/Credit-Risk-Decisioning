@@ -120,6 +120,3 @@ malformed-input rejection).
   current model uses the application and bureau tables.
 - Single LightGBM model, no ensemble.
 
-## License
-
-MIT
