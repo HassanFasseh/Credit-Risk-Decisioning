@@ -121,3 +121,48 @@ ROC-AUC = 0.7575 (reference only) vs 0.7515.
 lift@10 = 3.33 vs 3.24, lift@20 = 2.61 vs 2.56.
 Improvement holds in all 4 folds individually, not just on average -- bureau
 history earns its place in v1.1.
+
+## Probability calibration (component 5)
+
+**Decision:** calibration slice = block_4 (the last walk-forward validation
+block), model trained on blocks 0-3 (the same model that was fold 3 in
+components 3/4). Resolves the component-2 open item: forward of every row the
+model trained on, never used for training, not the final holdout.
+
+**Named cost of not having a dedicated calibration split:** block_4 now does
+three jobs at once -- early-stopping monitor for the base model's tree count,
+isotonic calibrator fit, and calibration-quality evaluation. Fitting and
+evaluating the calibrator on the same data is optimistic in general. Isotonic
+regression's effective flexibility is much lower than a general model (see
+below: it collapsed to 56 plateaus over 52,276 points), which limits how much
+this can be overfitting rather than genuine signal, but it isn't zero. The
+holdout is the only place this gets a real out-of-sample check, and that
+happens once, at the end.
+
+**Isotonic vs Platt:** used isotonic. Calibration slice has 52,276 rows /
+4,178 positives, both comfortably over the ~1,000-example rule of thumb for
+trusting isotonic over Platt's single-sigmoid fit.
+
+**Result -- calibration quality:** Brier score 0.06640 -> 0.06618 (small
+improvement; this dataset's ~8% base rate caps how large a Brier improvement
+can look regardless of calibration quality). Reliability curve mean
+|observed - predicted| across 10 quantile bins: 0.0031 -> 0.0000 (isotonic is
+fit by construction to match observed rate on its own training data --
+expected, not a surprise, and part of why this reliability number specifically
+needs the holdout to mean anything as a true generalization check).
+
+**Result -- ranking preservation, checked not assumed:** isotonic pooled
+52,220 of 52,276 raw scores into just 56 distinct calibrated values. This
+lift-corrected ROC-AUC (+0.0014) and both business metrics (lift@10 +0.019,
+lift@20 +0.004) essentially unchanged or marginally better, but PR-AUC
+dropped 0.2608 -> 0.2557 (-0.0050, -1.9% relative) -- not fully "unchanged".
+Reasoned explanation, not hand-waved: 56 plateaus over 52,276 points at an 8%
+base rate is close to what's needed for each plateau to have enough positives
+(~75 each) for a low-variance frequency estimate; PAV is doing what it's
+supposed to given how much data actually supports distinguishing probability
+levels this finely. PR-AUC is sensitive to fine-grained tie-breaking across
+the full precision-recall curve in a way lift@k and ROC-AUC at the decile
+level are not, which is why it moved and the others didn't. 1,869 calibration-
+slice rows are tied at the exact score value straddling the top-10% cutoff --
+their relative order within that tie is arbitrary post-calibration, which
+matters for lift-based portfolio cuts and should stay visible, not buried.

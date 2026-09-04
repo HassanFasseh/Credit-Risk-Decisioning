@@ -12,13 +12,16 @@ filtered out by the point-in-time cutoff, get NaN across every BUREAU_*
 column via this left join -- exactly the missing-not-zero behavior required.
 """
 
+import pandas as pd
+
 from baseline import load_features
 from bureau_features import build_bureau_features
 from splits import build_split_labels, load_sorted_ids
 from train_eval import run_walk_forward
 
 
-def main() -> None:
+def build_dataset() -> tuple[pd.DataFrame, pd.Series, pd.Series, list[str]]:
+    """Returns (features, target, split_label, categorical_columns), aligned by row."""
     app = load_features()
     bureau = build_bureau_features()
 
@@ -44,11 +47,16 @@ def main() -> None:
     for col in cat_cols:
         features[col] = features[col].astype("category")
 
+    return features, target, df["split"], cat_cols
+
+
+def main() -> None:
+    features, target, split, cat_cols = build_dataset()
     print()
     print("=" * 80)
     print("WALK-FORWARD TRAINING (holdout not touched)")
     print("=" * 80)
-    run_walk_forward(features, target, df["split"], cat_cols)
+    run_walk_forward(features, target, split, cat_cols)
 
 
 if __name__ == "__main__":
