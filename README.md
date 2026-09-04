@@ -1,5 +1,13 @@
 # Credit Default Risk
 
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![LightGBM](https://img.shields.io/badge/LightGBM-2E8B57?logo=lightgbm&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn&logoColor=white)
+![pandas](https://img.shields.io/badge/pandas-150458?logo=pandas&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white)
+
 A credit-default prediction system on the Home Credit dataset: given an applicant's
 data plus their credit-bureau history, predict whether they default, and turn that
 into an approve/decline decision. Built as a portfolio piece for end-of-studies
